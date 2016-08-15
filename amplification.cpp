@@ -16,8 +16,7 @@ Mat computeFullEnergy(Mat img, Mat mod)
 	{
 		for (j = 1; j < img.cols - 1; j++)
 		{
-			if(mod.at<uchar>(i, j) == 255)energy.at<int>(i,j) = -255;
-			else if(mod.at<uchar>(i, j) == 125)energy.at<int>(i,j) = 255;
+			if(mod.at<uchar>(i, j) == 255)energy.at<int>(i,j) = 255;
 			else
 			{
 				gx = gy = 0;
@@ -30,28 +29,16 @@ Mat computeFullEnergy(Mat img, Mat mod)
 	return energy;
 }
 
-Mat markImage(Mat src, int &num)
+Mat markImage(Mat src)
 {
-	int rowval[src.rows];
-	int colval[src.cols];
-	memset(rowval,0,sizeof(rowval));
-	memset(colval,0,sizeof(colval));
-	num=0;
 	// black image
-	Mat red(src.rows,src.cols,CV_8UC1,Scalar(0));
 	Mat green(src.rows,src.cols,CV_8UC1,Scalar(0));
 	Mat img(src.rows,src.cols,CV_8UC1,Scalar(0));
 	for(int i=0;i<src.rows;i++)
 	{
 		for(int j=0;j<src.cols;j++)
 		{
-				
-			if(src.at<Vec3b>(i,j)[0]<=122 && src.at<Vec3b>(i,j)[0]>=118 && src.at<Vec3b>(i,j)[1]>=242 && src.at<Vec3b>(i,j)[2]>=242)
-			{
-				red.at<uchar>(i,j)=255;
-				rowval[i]++;
-				colval[j]++;
-			}
+
 			if(src.at<Vec3b>(i,j)[0]<=62 && src.at<Vec3b>(i,j)[0]>=58 && src.at<Vec3b>(i,j)[1]>=242 && src.at<Vec3b>(i,j)[2]>=242)
 				green.at<uchar>(i,j)=255;
 		}
@@ -61,9 +48,6 @@ Mat markImage(Mat src, int &num)
     Mat element = getStructuringElement(cv::MORPH_RECT,
           cv::Size(2 * erosion_size + 1, 2 * erosion_size + 1),
           cv::Point(erosion_size, erosion_size) );
-    // for red portion
-	dilate(red,red,element);
-	erode(red,red,element);
 	//for green portion
 	dilate(green,green,element);
 	erode(green,green,element);
@@ -72,20 +56,10 @@ Mat markImage(Mat src, int &num)
 	{
 		for(int j=0;j<img.cols;j++)
 		{
-			if(red.at<uchar>(i,j)==255)
-				img.at<uchar>(i,j)=255;
 			if(green.at<uchar>(i,j)==255)
-				img.at<uchar>(i,j)=125;
+				img.at<uchar>(i,j)=255;
 		}
 	}
-
-	//counting number of seams to remove
-	for(int i=0;i<src.cols;i++)if(colval[i]>0)num++;
-	//Display
-	
-	imshow("Source",src);
-	imshow("Combined",img);
-	
 	return img;
 }
 
@@ -165,17 +139,31 @@ Mat removeVerticalSeam(Mat img, vector<uint> seam, Mat &mod)
 	}
 	//resize the image
 	img = img(Rect(0, 0, img.cols - 1, img.rows));
-	mod = mod(Rect(0, 0, img.cols - 1, img.rows));
+	mod = mod(Rect(0, 0, mod.cols - 1, mod.rows));
 	return img;
 }
-Mat addSeams(Mat img,int k)
+vector<uint> findHorizontalSeam(Mat img,Mat energy)
 {
-	
+	transpose(img, img);
+	transpose(energy,energy);
+	vector<uint> seam(img.rows);
+	seam = findVerticalSeam(img, energy);
+	return seam;
+}
+
+Mat removeHorizontalSeam(Mat img, vector<uint> seam,Mat &mod)
+{
+	transpose(img, img);
+	transpose(mod,mod);
+	img = removeVerticalSeam(img, seam,mod);
+	transpose(img, img);
+	transpose(mod,mod);
+	return img;
 }
 int main()
 {
-	Mat src = imread("lake_test.jpg", CV_LOAD_IMAGE_COLOR);
-	Mat mod = imread("newlake_test2.jpg", CV_LOAD_IMAGE_COLOR);
+	Mat src = imread("beach.jpg", CV_LOAD_IMAGE_COLOR);
+	Mat mod = imread("beach_new.jpg", CV_LOAD_IMAGE_COLOR);
 
 	cvtColor(mod,mod,CV_RGB2HSV);
 	if (!src.data)
@@ -188,31 +176,55 @@ int main()
 		cout << "Invalid Input\n";
 		return 0;
 	}
+	Mat src_big;
+	Size size((unsigned int)(src.cols*1.5),(unsigned int)(src.rows*1.5));
+	resize(src,src_big,size);
+	resize(mod,mod,size);
 	Mat lab;
-	cvtColor(src, lab, CV_RGB2Lab);
-	int num;
+	cvtColor(src_big, lab, CV_RGB2Lab);
 	
 	//mark object in mod
-	mod = markImage(mod,num);
+	Mat bin = markImage(mod);
 
 	Mat energy;vector<uint> seam;
-	for(int i=0;i<num;i++)
+	int cy=(src_big.cols-src.cols);
+	int cx=(src_big.rows-src.rows);
+	while (cx > 0 && cy > 0)
 	{
-		energy = computeFullEnergy(lab, mod);
+		energy = computeFullEnergy(lab,mod);
 		seam = findVerticalSeam(lab, energy);
-		lab = removeVerticalSeam(lab, seam, mod);
+		lab = removeVerticalSeam(lab, seam,mod);
+		cy--;
+		//energy = computeFullEnergy(lab,mod);
+		seam = findHorizontalSeam(lab, energy);
+		lab = removeHorizontalSeam(lab, seam,mod);
+		cx--;
 	}
-	medianBlur(lab,lab,3);
-	Size size(src.cols,src.rows);
+	while (cy > 0)
+	{
+		energy = computeFullEnergy(lab,mod);
+		seam = findVerticalSeam(lab, energy);
+		lab = removeVerticalSeam(lab, seam,mod);
+		cy--;
+	}
+	while (cx > 0)
+	{
+		energy = computeFullEnergy(lab,mod);
+		transpose(energy, energy);
+		seam = findHorizontalSeam(lab, energy);
+		lab = removeHorizontalSeam(lab, seam,mod);
+		cx--;
+	}
+	
 	cvtColor(lab, lab, CV_Lab2RGB); 
-	resize(lab,lab,size);
+	
 	namedWindow("Original",CV_WINDOW_NORMAL);
 	namedWindow("Changed",CV_WINDOW_NORMAL);
 	imshow("Original", src);
 	imshow("Changed", lab);
 	cout << src.rows << " " << src.cols << endl;
 	cout << lab.rows << " " << lab.cols << endl;
-	imwrite("lake_edited.jpg",lab);
+	imwrite("edited.jpg",lab);
 	waitKey(0);
 	destroyAllWindows();
 	return 0;

@@ -82,10 +82,10 @@ Mat markImage(Mat src, int &num)
 	//counting number of seams to remove
 	for(int i=0;i<src.cols;i++)if(colval[i]>0)num++;
 	//Display
-	
+	/*
 	imshow("Source",src);
 	imshow("Combined",img);
-	
+	*/
 	return img;
 }
 

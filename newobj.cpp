@@ -82,10 +82,10 @@ Mat markImage(Mat src, int &num)
 	//counting number of seams to remove
 	for(int i=0;i<src.cols;i++)if(colval[i]>0)num++;
 	//Display
-	
+	/*
 	imshow("Source",src);
 	imshow("Combined",img);
-	
+	*/
 	return img;
 }
 
@@ -170,12 +170,13 @@ Mat removeVerticalSeam(Mat img, vector<uint> seam, Mat &mod)
 }
 Mat addSeams(Mat img,int k)
 {
+	Mat energy=computeFullEnergy(img);
 	
 }
 int main()
 {
-	Mat src = imread("lake_test.jpg", CV_LOAD_IMAGE_COLOR);
-	Mat mod = imread("newlake_test2.jpg", CV_LOAD_IMAGE_COLOR);
+	Mat src = imread("edited.jpg", CV_LOAD_IMAGE_COLOR);
+	Mat mod = imread("edited_new.jpg", CV_LOAD_IMAGE_COLOR);
 
 	cvtColor(mod,mod,CV_RGB2HSV);
 	if (!src.data)
@@ -212,7 +213,7 @@ int main()
 	imshow("Changed", lab);
 	cout << src.rows << " " << src.cols << endl;
 	cout << lab.rows << " " << lab.cols << endl;
-	imwrite("lake_edited.jpg",lab);
+	imwrite("edited.jpg",lab);
 	waitKey(0);
 	destroyAllWindows();
 	return 0;
